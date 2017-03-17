@@ -2,6 +2,7 @@
 
 
 #import ConfigParser
+import argparse
 import sys, os.path
 from distutils.version import LooseVersion as Version
 import requests as req
@@ -101,8 +102,8 @@ class _Controller(object):
         
         
     def _params_prepare(self, param, xhd={}):
-                
-        par=dict({'Xrfkey': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))})
+             
+        par=dict({'Xrfkey': ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(16))})   
 
         if isinstance(param, dict):
             for p,v in param.items():
@@ -131,7 +132,7 @@ class _Controller(object):
         return(par, hd)  
     
        
-    def call(self, method='GET', apipath='/', param=None, data=None, files=None):
+    def call(self, method='GET', apipath='/', param=None, data=None, files=None, json=None):
         """ initialize control structure """
                
         if str(method).upper() not in ('GET', 'POST', 'PUT', 'DELETE'):
@@ -145,7 +146,7 @@ class _Controller(object):
         # Build the request        
         self.response= None
         url='{0}/{1}?{2}'.format(self.baseurl, apipath.lstrip('/'), urlencode(par))
-        self.request=req.Request(method, url, headers=hd, data=data, files=files)
+        self.request=req.Request(method, url, headers=hd, data=data, files=files, json=json)
         pr=self.request.prepare()
                 
         if self.verbose.isInfo():
@@ -245,10 +246,7 @@ class _Controller(object):
                         yield data
         
             def __len__(self):
-                return self.totalsize
-        
-             
-                       
+                return self.totalsize                         
         if self.verbose.isInfo():
             print('\n API endpoint <{0}>'.format(apipath))
 
@@ -285,6 +283,43 @@ class _Controller(object):
         return(self.request.ok)
 
 
+    def uploadJSON(self, apipath, json, param=None):
+        """ initialize control structure """                        
+        if self.verbose.isInfo():
+            print('\n API endpoint <{0}>'.format(apipath))
+
+        (par,hd)=self._params_prepare(param, {'Content-Type': 'application/json'})
+        
+        
+        # Build the request        
+        self.response= None
+        url='{0}/{1}?{2}'.format(self.baseurl, apipath.lstrip('/'), urlencode(par))
+        print(url)
+     
+        
+        if self.verbose.isInfo():
+            print('\tSEND: '+url)
+
+                
+        # Execute the HTTP request 
+        try:
+            if self.verbose.isInfo():
+                print('\tUploading ', end='',flush=True)
+                
+            #upload
+            self.request = req.post(url, headers=hd, cert=self.cafile, verify=self._verify, json=json)
+                
+            if self.verbose.isInfo():
+                print(' Done.', flush=True)                
+            
+        except ValueError as e:
+            raise Exception('<Value error> {0}'.format(e))
+        except IOError as e:
+            raise Exception('<IO error> {0}'.format(e))
+        except Exception as e:
+            raise Exception('<Unknow error> {0}'.format(e))
+        
+        return(self.request.ok)
     
     
     def get(self, apipath='/qrs/about/api/description', param=None):
@@ -298,7 +333,7 @@ class _Controller(object):
     
     
     
-    def post(self, apipath, param=None, data=None, files=None):
+    def post(self, apipath, param=None, data=None, files=None, json=None):
         '''
         @Function post: generic purpose call
         @param apipath: uri REST path
@@ -309,7 +344,7 @@ class _Controller(object):
         '''
         if isinstance(data,dict) or isinstance(data,list):
             data=json.dumps(data)
-        return self.call('POST', apipath, param, data, files)
+        return self.call('POST', apipath, param, data, files, json)
     
     
     
@@ -323,7 +358,7 @@ class _Controller(object):
         '''
         if isinstance(data,dict) or isinstance(data,list):
             data=json.dumps(data)
-        return self.call('PUT', apipath, param, data)
+        return self.call('PUT', apipath, param, data, json)
     
     
     
@@ -345,7 +380,7 @@ class QPS(object):
     VERSION_API= Version('2.1.0')
     
     
-    def __init__(self, proxy='localhost', port=4243, vproxy='', certificate=None, verify=False, userDirectory='internal', userID='sa_repository', verbosity=Verbose.INFO):  
+    def __init__(self, proxy='localhost', port=4243, vproxy='', certificate=None, verify=False, userDirectory='internal', userID='root', verbosity=Verbose.INFO):  
         
         self.driver=_Controller(proxy, port, vproxy, certificate, verify, userDirectory, userID, verbosity)
 
@@ -394,7 +429,7 @@ class QRS(object):
     VERSION_API= Version('2.1.0')
     
     
-    def __init__(self, proxy='localhost', port=4242, vproxy='', certificate=None, verify=False, userDirectory='internal', userID='sa_repository', verbosity=Verbose.INFO):
+    def __init__(self, proxy='localhost', port=4242, vproxy='', certificate=None, verify=False, userDirectory='internal', userID='sa_repository', verbosity=Verbose.INFO, license=None):
         
         self.driver=_Controller(proxy, port, vproxy, certificate, verify, userDirectory, userID, verbosity)
         self.VERSION_SERVER=self.getServerVersion()
@@ -402,9 +437,20 @@ class QRS(object):
             raise Exception('<server version mismatch, API:{0} > Server:{1}'.format(self.VERSION_API, self.VERSION_SERVER))
         else:
             if self.driver.verbose.isApi():
-                print(' Server version: {0}'.format(self.VERSION_SERVER))
+                print(' Server version: {0}'.format(self.VERSION_SERVER))    
 
+    def QlikLicense(self, json_path, control_license):
+        '''
+        @Function: Copy an existing app, identified by {id}. Optionally, provide a name for the copy.
+        @param pId: app identifier
+        @param name: Name of the app
+        '''
+        param={'control':control_license,'privileges':'True'}
 
+        with open(json_path) as json_file:
+            json_data = json.load(json_file)
+    
+        return self.driver.post('/qrs/license', param, json=json_data).json()
 
     def ping(self):
         '''
@@ -413,8 +459,7 @@ class QRS(object):
         return self.driver.call('GET', '/ssl/ping')
 
 
-
-        
+  
     def getServerVersion(self):
         '''
         @Function: retrieve the server version
@@ -547,6 +592,16 @@ class QRS(object):
         '''
         param ={'name':name}
         return self.driver.upload('/qrs/app/upload', filename, param)
+
+    #TODO: cambios con 2.2
+    def LicenseUpload(self, filename, name):
+        '''
+        @Function: Upload a filename.crt into Central Node.
+        @param filename: target path filename
+        @param name: target app name
+        '''
+        param ={'name':name}
+        return self.driver.upload('/qrs/app/upload', filename, param)
     
     
     
@@ -628,14 +683,24 @@ class QRS(object):
 
 
 if __name__ == "__main__":
+
+     # Parse arguments
+    parser = argparse.ArgumentParser(description='Process Arguments.')
+    parser.add_argument("-lc", "--license_file", default='', type=str, required = True,
+                         help="License json file.")
+    parser.add_argument("-cl", "--control_license", default='', type=str, required = True,
+                         help="Control license number.")
+    parser.add_argument("-su", "--service_user", default='', type=str, required = True,
+                         help="Qliksense api service user.")
+    args = parser.parse_args()
+
+    license_file = args.license_file
+    control_license = args.control_license
+    service_user = args.service_user[0:]
+
+    qrs=QRS(certificate='C:\\ProgramData\\Qlik\\Sense\\Repository\\Exported Certificates\\.Local Certificates\\client.pem', verbosity=Verbose.DEBUG, userID=service_user)    
     
     from pprint import pprint
-    
-    qrs=QRS(proxy='TESTW7-S', verbosity=Verbose.DEBUG, certificate='C:\\Users\\Test\\workspace\\QSenseAPI\\certificates\\testw7-s\\client.pem')
-    qrs.ping()
-    
-    pprint(qrs.AppDictAttributes())
-    pprint([qrs.count(x) for x in ('app','user','stream','dataconnection')])
-
+    pprint(qrs.QlikLicense(license_file,control_license))
 
     

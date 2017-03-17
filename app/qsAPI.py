@@ -432,12 +432,12 @@ class QRS(object):
     def __init__(self, proxy='localhost', port=4242, vproxy='', certificate=None, verify=False, userDirectory='internal', userID='sa_repository', verbosity=Verbose.INFO, license=None):
         
         self.driver=_Controller(proxy, port, vproxy, certificate, verify, userDirectory, userID, verbosity)
-        self.VERSION_SERVER=self.getServerVersion()
-        if self.VERSION_API > self.VERSION_SERVER:
-            raise Exception('<server version mismatch, API:{0} > Server:{1}'.format(self.VERSION_API, self.VERSION_SERVER))
-        else:
-            if self.driver.verbose.isApi():
-                print(' Server version: {0}'.format(self.VERSION_SERVER))    
+        #self.VERSION_SERVER=self.getServerVersion()
+        #if self.VERSION_API > self.VERSION_SERVER:
+        #    raise Exception('<server version mismatch, API:{0} > Server:{1}'.format(self.VERSION_API, self.VERSION_SERVER))
+        #else:
+        #    if self.driver.verbose.isApi():
+        #        print(' Server version: {0}'.format(self.VERSION_SERVER))    
 
     def QlikLicense(self, json_path, control_license):
         '''

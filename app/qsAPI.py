@@ -691,12 +691,15 @@ if __name__ == "__main__":
     parser.add_argument("-cl", "--control_license", default='', type=str, required = True,
                          help="Control license number.")
     parser.add_argument("-su", "--service_user", default='', type=str, required = True,
-                         help="Qliksense api service user.")
+                         help="Qliksense api service user with domain.")
     args = parser.parse_args()
 
     license_file = args.license_file
     control_license = args.control_license
-    service_user = args.service_user[0:]
+
+    # User provided must contain domain
+    domain,name = args.service_user.split("\\")
+    service_user = name
 
     qrs=QRS(certificate='C:\\ProgramData\\Qlik\\Sense\\Repository\\Exported Certificates\\.Local Certificates\\client.pem', verbosity=Verbose.DEBUG, userID=service_user)    
     
